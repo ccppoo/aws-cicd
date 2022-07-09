@@ -65,7 +65,7 @@ jobs:
 
     steps:
     - name: Bring task-definition.json from AWS S3
-      id:
+      id: na
       uses: keithweaver/aws-s3-github-action@v1.0.0
       with:
         command: cp
