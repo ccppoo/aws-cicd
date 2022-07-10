@@ -27,8 +27,8 @@
 name: test
 
 on:
-  push:
-    branches:
+  # push:
+  #   branches:
       # - "main"
   # run manually
   workflow_dispatch:

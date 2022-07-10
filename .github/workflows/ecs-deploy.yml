@@ -24,27 +24,34 @@
 #    See the documentation for each action used below for the recommended IAM policies for this IAM user,
 #    and best practices on handling the access key credentials.
 
-## 알림
-
-# ${{ env.var-name}} : Options -> Environments
-
 name: Deploy to Amazon ECS
 
 on:
   push:
     branches:
-      - "main"
+      # - "main"
   # run manually
   workflow_dispatch:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION}}
+
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY}}
+  IMAGE_TAG: latest
+  # IMAGE_TAG: ${{ github.sha }}
+
+  # TASK_DEFINITION_S3_PATH:  ${{ secrets.TASK_DEFINITION_S3_PATH }}
+  TASK_DEFINITION_S3_PATH: s3://task-definition-collections/task-definition.json
+  WORKING_TASK_DEFINITION_PATH : ./task-definition.json
+
   ECS_SERVICE: ${{ secrets.ECS_SERVICE}}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER}}
-  ECS_TASK_DEFINITION: devops/task-definition.json # set this to the path to your Amazon ECS task definition
+  ECS_TASK_DEFINITION: aws/task-definition.json # set this to the path to your Amazon ECS task definition
                                                # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: ${{secrets.CONTAINER_NAME}}           # set this to the name of the container in the
+  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}           # set this to the name of the container in the
                                                # containerDefinitions section of your task definition
 
 permissions:
@@ -63,8 +70,8 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
@@ -75,7 +82,7 @@ jobs:
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: latest
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         # Build a docker container and
         # push it to ECR so that it can
@@ -84,11 +91,25 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
+    - name: Bring task-definition.json from AWS S3
+      id:
+      uses: keithweaver/aws-s3-github-action@v1.0.0
+      with:
+        command: cp
+        # source: s3://yourbucket/folder/task-definition.json
+        source: ${{ env.TASK_DEFINITION_S3_PATH }}
+        # download to current Github Action
+        destination: ${{ env.WORKING_TASK_DEFINITION_PATH }}
+
+        aws_access_key_id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws_region: ${{ env.AWS_REGION }}
+
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        task-definition: ${{ env.ECS_TASK_DEFINITION }}
+        task-definition: ${{ env.WORKING_TASK_DEFINITION_PATH }}
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
