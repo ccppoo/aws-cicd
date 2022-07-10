@@ -92,7 +92,7 @@ jobs:
         echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
     - name: Bring task-definition.json from AWS S3
-      id:
+      id: get-taskdef-json
       uses: keithweaver/aws-s3-github-action@v1.0.0
       with:
         command: cp
